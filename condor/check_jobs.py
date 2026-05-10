@@ -34,7 +34,7 @@ parser.add_argument(
 parser.add_argument("--tag", default="", help="tag for jobs", type=str)
 parser.add_argument("--year", help="year", type=str, required=True)
 parser.add_argument("--change-batch-size", help="Change batch size for failed jobs - primarily in case the jobs are failing because of memory issues", type=int, default=None)
-parser.add_argument("--user", default="rkansal", help="user", type=str)
+parser.add_argument("--user", default="cquarant", help="user", type=str)
 utils.add_bool_arg(parser, "submit-missing", default=False, help="submit missing files")
 utils.add_bool_arg(parser, "print-shell", default=False, help="print .sh files as well")
 utils.add_bool_arg(
@@ -50,21 +50,23 @@ args = parser.parse_args()
 cmspath = {
     "lpc": "/eos/uscms/",
     "ucsd": "/ceph/cms/",
+    "lxplus": "/eos/user/",
 }[args.site]
 
 xrddir = (
-    f"{cmspath}/store/user/{args.user}/{args.analysis}/{args.processor}/{args.tag}/{args.year}/"
+    f"/eos/user/{args.user}/{args.analysis}/{args.processor}/{args.tag}/{args.year}/"
 )
 
 samples = listdir(xrddir)
-jdls = [jdl for jdl in listdir(f"condor/{args.processor}/{args.tag}/") if jdl.endswith(".jdl")]
+jdls = [jdl for jdl in listdir(f"condor/{args.processor}/{args.tag}/") if jdl.endswith(".sub")]
 
+print(f"Found {len(jdls)} jdl files and {len(samples)} samples.")
 jdl_dict = {}
 for sample in samples:
     x = [
-        int(jdl[:-4].split("_")[-1])
+        int(jdl[:-4].split("_")[-2])
         for jdl in jdls
-        if jdl.split("_")[0] == args.year and "_".join(jdl.split("_")[1:-1]) == sample
+        if jdl.split("_")[0] == args.year and "_".join(jdl.split("_")[1:-2]) == sample
     ]
     if len(x) > 0:
         jdl_dict[sample] = np.sort(x)[-1] + 1
@@ -157,7 +159,7 @@ for sample in samples:
 
     for i in range(jdl_dict[sample]):
         check_pickles = i in outs_pickles
-        check_parquet = True
+        check_parquet = False
         if args.processor != "trigger":
             if i not in outs_parquet:
                 check_parquet = False
@@ -176,22 +178,24 @@ for sample in samples:
                 print_red(f"Missing output pickle #{i} for sample {sample}")
 
             if not check_parquet:
-                if i not in outs_parquet:
-                    print_red(f"Missing all output parquets for job #{i} for sample {sample}")
-                else:
-                    print_red(f"Missing batches {missing_batches} for job #{i} for sample {sample}")
+                ...
+                # if i not in outs_parquet:
+                #     print_red(f"Missing all output parquets for job #{i} for sample {sample}")
+                # else:
+                #     print_red(f"Missing batches {missing_batches} for job #{i} for sample {sample}")
 
-            jdl_file = f"condor/{args.processor}/{args.tag}/{args.year}_{sample}_{i}.jdl"
-            err_file = f"condor/{args.processor}/{args.tag}/logs/{args.year}_{sample}_{i}.err"
-            missing_files.append(jdl_file)
-            err_files.append(err_file)
-            if args.submit_missing:
-                os.system(f"condor_submit {jdl_file}")
+            jdl_file = f"condor/{args.processor}/{args.tag}/{args.year}_{sample}_{i}_eos.sub"
+            err_file = f"condor/{args.processor}/{args.tag}/logs/{sample}_{i}.err"
+            if not check_pickles:
+                missing_files.append(jdl_file)
+                err_files.append(err_file)
+                if args.submit_missing:
+                    os.system(f"condor_submit {jdl_file}")
 
 
 print(f"{len(missing_files)} files to re-run:")
 for f in missing_files:
-    print(f)
+    print(f.replace(".jdl", "_eos.sub"))
 
 if args.print_shell:
     print(f"\n{len(missing_files)} bash files:")
