@@ -140,6 +140,8 @@ def flatten_dict(var_dict: dict):
     Flattens dictionary of variables so that each key has a 1d-array
     """
     new_dict = {}
+    print("Original var_dict:")
+    print(var_dict)
     for key, var in var_dict.items():
         num_objects = var.shape[-1]
         if len(var.shape) >= 2 and num_objects > 1:
@@ -150,6 +152,75 @@ def flatten_dict(var_dict: dict):
 
     return new_dict
 
+# def flatten_dict(var_dict: dict):
+#     """
+#     Flattens dictionary of variables so that each key has a 1d-array
+#     """
+#     new_dict = {}
+#     for key, var in var_dict.items():
+#         try:
+#             print(f"Processing {key}: shape={var.shape}, dtype={var.dtype}")
+            
+#             if len(var.shape) >= 2 and var.shape[-1] > 1:
+#                 # Multi-object column: extract each object index
+#                 num_objects = var.shape[-1]
+#                 print(f"  -> Multi-object column with {num_objects} objects")
+#                 for obj in range(num_objects):
+#                     new_dict[f"{key}{obj}"] = var[:, obj]
+#                     print(f"     Created {key}{obj}: shape={var[:, obj].shape}")
+#             else:
+#                 # Single-object or scalar: just squeeze
+#                 squeezed = np.squeeze(var)
+#                 new_dict[key] = squeezed
+#                 print(f"  -> Squeezed to shape={squeezed.shape}")
+        
+#         except Exception as e:
+#             print(f"❌ ERROR processing {key}: {e}")
+#             print(f"   Original shape: {var.shape}, dtype: {var.dtype}")
+#             raise
+    
+#     print(f"\n✓ flatten_dict complete: created {len(new_dict)} output arrays")
+#     return new_dict
+# def flatten_dict(var_dict: dict):
+#     """
+#     Flattens dictionary of variables so that each key has a 1d-array
+#     """
+#     new_dict = {}
+#     for key, var in var_dict.items():
+#         if len(var.shape) >= 2 and var.shape[-1] > 1:
+#             # Multi-object column: extract each object index
+#             num_objects = var.shape[-1]
+#             for obj in range(num_objects):
+#                 new_dict[f"{key}{obj}"] = var[:, obj]
+#         else:
+#             # Single-object or scalar: just squeeze
+#             new_dict[key] = np.squeeze(var)
+    
+#     return new_dict
+
+# def flatten_dict(var_dict: dict):
+#     """
+#     Flattens dictionary of variables so that each key has a 1d-array
+#     """
+#     new_dict = {}
+#     for key, var in var_dict.items():
+#         # Handle scalars and arrays without shape attribute
+#         if not hasattr(var, 'shape') or len(var.shape) == 0:
+#             # Scalar or 0-d array
+#             new_dict[key] = np.atleast_1d(var).squeeze()
+#         elif len(var.shape) == 1:
+#             # Already 1-d
+#             new_dict[key] = var
+#         else:
+#             # 2-d or higher
+#             num_objects = var.shape[-1]
+#             if num_objects > 1:
+#                 temp_dict = {f"{key}{obj}": var[:, obj] for obj in range(num_objects)}
+#                 new_dict = {**new_dict, **temp_dict}
+#             else:
+#                 new_dict[key] = np.squeeze(var)
+    
+#     return new_dict
 
 def run_dask(p: processor, fileset: dict, args):
     """Run processor on using dask via lpcjobqueue"""
@@ -318,15 +389,31 @@ def run(
                 table = pa.Table.from_pandas(pddf)
                 pq.write_table(table, f"{local_dir}/out_{filetag}_batch_{i}.parquet")
 
+
             if save_root:
                 import awkward as ak
 
                 with uproot.recreate(
                     f"{local_dir}/nano_skim_{filetag}_batch_{i}.root", compression=uproot.LZ4(4)
                 ) as rfile:
+                    # Pass original unsqueezed arrays to flatten_dict
                     rfile["Events"] = ak.Array(
-                        # take only top-level column names in multiindex df
                         flatten_dict(
-                            {key: np.squeeze(pddf[key].values) for key in pddf.columns.levels[0]}
+                            {key: pddf[key].values for key in pddf.columns.levels[0]}
                         )
                     )
+            # {key: np.squeeze(pddf[key].values) for key in pddf.columns.levels[0]}
+
+            # if save_root:
+            #     import awkward as ak
+
+
+            #     with uproot.recreate(
+            #         f"{local_dir}/nano_skim_{filetag}_batch_{i}.root", compression=uproot.LZ4(4)
+            #     ) as rfile:
+            #         rfile["Events"] = ak.Array(
+            #             # take only top-level column names in multiindex df
+            #             flatten_dict(
+            #                 {key: np.squeeze(pddf[key].values) for key in pddf.columns.levels[0]}
+            #             )
+            #         )
